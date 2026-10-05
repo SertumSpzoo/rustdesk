@@ -9,7 +9,9 @@ Użycie (w katalogu głównym repozytorium RustDesk):
 Co zmienia:
   * libs/hbb_common/src/config.rs – domyślny serwer ID/relay i klucz publiczny,
     więc klient od razu łączy się z serwerem Sertum, bez żadnej konfiguracji.
-  * flutter/windows/runner/Runner.rc – nazwa produktu i firmy we właściwościach pliku.
+  * flutter/windows/runner/Runner.rc – nazwa produktu i firmy we właściwościach rustdesk.exe.
+  * Cargo.toml, libs/portable/Cargo.toml – to samo dla librustdesk.dll
+    i zewnętrznego SertumPomoc.exe (sekcja [package.metadata.winres]).
   * (opcjonalnie) ikony i logo z katalogu --branding:
         icon.ico  -> ikona pliku .exe, okna, zasobnika i skrótów
         logo.png  -> logo w oknie programu (ok. 200x60 px, przezroczyste tło)
@@ -25,6 +27,11 @@ from pathlib import Path
 
 CONFIG_RS = Path("libs/hbb_common/src/config.rs")
 RUNNER_RC = Path("flutter/windows/runner/Runner.rc")
+# Cargo.toml -> właściwości pliku (OriginalFilename; None = bez zmian)
+CARGO_WINRES = {
+    Path("Cargo.toml"): None,                              # librustdesk.dll
+    Path("libs/portable/Cargo.toml"): "SertumPomoc.exe",   # zewnętrzny plik dla klienta
+}
 
 ICON_TARGETS = [
     Path("res/icon.ico"),                                   # ikona samorozpakowującego .exe
@@ -95,7 +102,7 @@ def patch_runner_rc(product: str, company: str) -> None:
         "CompanyName": company,
         "FileDescription": product,
         "ProductName": product,
-        "LegalCopyright": f"{company}. Oparte na RustDesk (AGPL-3.0).",
+        "LegalCopyright": f"{company} – oparte na RustDesk (AGPL-3.0)",
     }
     for name, value in values.items():
         text = replace_once(
@@ -106,6 +113,33 @@ def patch_runner_rc(product: str, company: str) -> None:
         )
     RUNNER_RC.write_text(text, encoding="utf-8")
     print(f"  właściwości pliku: {product} / {company}")
+
+
+def toml_escape(s: str) -> str:
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def patch_cargo_winres(path: Path, product: str, company: str,
+                       original_filename) -> None:
+    text = path.read_text(encoding="utf-8")
+    m = re.search(r"^\[package\.metadata\.winres\]\n(?:[^\[\n].*\n|\n)*", text, re.MULTILINE)
+    if not m:
+        fail(f"nie znaleziono [package.metadata.winres] w {path} – "
+             f"zmieniła się struktura kodu RustDesk")
+    values = {
+        "CompanyName": company,
+        "FileDescription": product,
+        "ProductName": product,
+        "LegalCopyright": f"{company} – oparte na RustDesk (AGPL-3.0)",
+    }
+    if original_filename:
+        values["OriginalFilename"] = original_filename
+    kept = [l for l in m.group(0).splitlines()[1:]
+            if l.strip() and l.split("=")[0].strip() not in values]
+    kept += [f'{k} = "{toml_escape(v)}"' for k, v in values.items()]
+    section = "[package.metadata.winres]\n" + "\n".join(kept) + "\n\n"
+    path.write_text(text[:m.start()] + section + text[m.end():], encoding="utf-8")
+    print(f"  właściwości pliku: {path}")
 
 
 def apply_branding(branding: Path) -> None:
@@ -137,7 +171,7 @@ def main() -> None:
     p.add_argument("--branding", type=Path, help="katalog z icon.ico i/lub logo.png")
     args = p.parse_args()
 
-    for f in (CONFIG_RS, RUNNER_RC):
+    for f in (CONFIG_RS, RUNNER_RC, *CARGO_WINRES):
         if not f.is_file():
             fail(f"nie znaleziono {f} – uruchom skrypt w katalogu głównym repo RustDesk "
                  f"(z pobranymi submodułami)")
@@ -145,6 +179,8 @@ def main() -> None:
     print("Konfiguracja klienta Sertum:")
     patch_config(validate_host(args.host), validate_key(args.key))
     patch_runner_rc(args.product, args.company)
+    for cargo, original_filename in CARGO_WINRES.items():
+        patch_cargo_winres(cargo, args.product, args.company, original_filename)
     if args.branding:
         if not args.branding.is_dir():
             fail(f"brak katalogu {args.branding}")
