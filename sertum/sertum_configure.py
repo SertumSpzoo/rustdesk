@@ -125,6 +125,9 @@ def apply_branding(branding: Path) -> None:
 
 
 def main() -> None:
+    # Konsola Windows (cp1252) nie wypisze polskich znaków – wymuszamy UTF-8.
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8")
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--host", required=True, help="adres serwera, np. pomoc.sertum.pl")
