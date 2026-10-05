@@ -7,6 +7,11 @@ Własny klient do **doraźnej** pomocy zdalnej klientom programu Sertum:
 klient dzwoni na hotline, pobiera `SertumPomoc.exe` (bez instalacji), podaje ID i hasło,
 technik się łączy. Stały/nienadzorowany dostęp do komputerów klientów NIE jest w zakresie.
 
+`SertumPomoc.exe` działa w trybie **tylko przychodzącym** z wyłączoną instalacją
+(`HARD_SETTINGS`: `conn-type=incoming`, `disable-installation=Y`) – publicznie dostępny
+plik nie może służyć do łączenia się z innymi komputerami. Technicy używają oficjalnego
+klienta RustDesk ze wpisanym serwerem `pomoc.sertum.pl` i kluczem publicznym serwera.
+
 ## Architektura
 - Serwer: RustDesk Server OSS (hbbs + hbbr) w Dockerze na VPS w UE,
   porty 21115/tcp, 21116/tcp+udp, 21117/tcp. Pliki w `server/` paczki startowej.

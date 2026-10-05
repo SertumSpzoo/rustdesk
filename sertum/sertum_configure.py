@@ -8,7 +8,8 @@ Użycie (w katalogu głównym repozytorium RustDesk):
 
 Co zmienia:
   * libs/hbb_common/src/config.rs – domyślny serwer ID/relay i klucz publiczny,
-    więc klient od razu łączy się z serwerem Sertum, bez żadnej konfiguracji.
+    więc klient od razu łączy się z serwerem Sertum, bez żadnej konfiguracji;
+    oraz HARD_SETTINGS: tylko połączenia przychodzące, instalacja wyłączona.
   * src/common.rs – using_public_server() uwzględnia wbudowany serwer, więc klient
     nie pokazuje linku „skorzystaj z własnego serwera” (reklama serwerów RustDesk).
   * flutter/windows/runner/Runner.rc – nazwa produktu i firmy we właściwościach rustdesk.exe.
@@ -30,6 +31,11 @@ from pathlib import Path
 
 CONFIG_RS = Path("libs/hbb_common/src/config.rs")
 COMMON_RS = Path("src/common.rs")
+# Na stałe wbudowane ustawienia klienta (config::HARD_SETTINGS)
+HARD_SETTINGS = {
+    "conn-type": "incoming",         # SertumPomoc.exe tylko udostępnia ekran, nie łączy się dalej
+    "disable-installation": "Y",     # bez przycisku „Zainstaluj” – wyłącznie praca doraźna
+}
 RUNNER_RC = Path("flutter/windows/runner/Runner.rc")
 # Cargo.toml -> właściwości pliku (OriginalFilename; None = bez zmian)
 CARGO_WINRES = {
@@ -113,6 +119,22 @@ def patch_public_server_check() -> None:
         )
         COMMON_RS.write_text(text, encoding="utf-8")
     print("  serwer publiczny: rozpoznaje wbudowany serwer (bez reklamy serwerów RustDesk)")
+
+
+def patch_hard_settings() -> None:
+    # Ustawienia, których użytkownik nie może zmienić (te same klucze, które w RustDesk
+    # ustawia podpisany custom.txt): tylko połączenia przychodzące i brak instalacji.
+    text = CONFIG_RS.read_text(encoding="utf-8")
+    text = replace_once(
+        text,
+        r'^(\s*pub static ref HARD_SETTINGS: RwLock<HashMap<String, String>> = ).*;$',
+        r'\1RwLock::new(HashMap::from([' + ", ".join(
+            f'("{k}".to_owned(), "{v}".to_owned())' for k, v in HARD_SETTINGS.items()
+        ) + r']));',
+        "HARD_SETTINGS",
+    )
+    CONFIG_RS.write_text(text, encoding="utf-8")
+    print("  tryb: tylko połączenia przychodzące, instalacja wyłączona")
 
 
 def rc_escape(s: str) -> str:
@@ -208,6 +230,7 @@ def main() -> None:
     print("Konfiguracja klienta Sertum:")
     patch_config(validate_host(args.host), validate_key(args.key))
     patch_public_server_check()
+    patch_hard_settings()
     patch_runner_rc(args.product, args.company)
     for cargo, original_filename in CARGO_WINRES.items():
         patch_cargo_winres(cargo, args.product, args.company, original_filename)
