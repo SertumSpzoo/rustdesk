@@ -14,7 +14,8 @@ Co zmienia:
     i zewnętrznego SertumPomoc.exe (sekcja [package.metadata.winres]).
   * (opcjonalnie) ikony i logo z katalogu --branding:
         icon.ico  -> ikona pliku .exe, okna, zasobnika i skrótów
-        logo.png  -> logo w oknie programu (ok. 200x60 px, przezroczyste tło)
+        icon.png  -> ikona w pasku kart i oknie połączenia (128x128 px)
+        logo.png  -> logo w oknie programu (maks. 300x60, przezroczyste tło)
 
 Skrypt jest idempotentny: można go uruchomić wielokrotnie.
 """
@@ -40,6 +41,7 @@ ICON_TARGETS = [
     Path("flutter/assets/icon.ico"),                        # skróty
 ]
 LOGO_TARGET = Path("flutter/assets/logo.png")
+ICON_PNG_TARGET = Path("flutter/assets/icon.png")
 
 
 def fail(msg: str) -> None:
@@ -145,6 +147,7 @@ def patch_cargo_winres(path: Path, product: str, company: str,
 def apply_branding(branding: Path) -> None:
     icon = branding / "icon.ico"
     logo = branding / "logo.png"
+    icon_png = branding / "icon.png"
     if icon.is_file():
         for target in ICON_TARGETS:
             shutil.copyfile(icon, target)
@@ -156,6 +159,11 @@ def apply_branding(branding: Path) -> None:
         print(f"  logo:  {logo}")
     else:
         print(f"  logo:  brak {logo}, bez logo w oknie")
+    if icon_png.is_file():
+        shutil.copyfile(icon_png, ICON_PNG_TARGET)
+        print(f"  ikona w aplikacji: {icon_png}")
+    else:
+        print(f"  ikona w aplikacji: brak {icon_png}, zostaje domyślna")
 
 
 def main() -> None:
