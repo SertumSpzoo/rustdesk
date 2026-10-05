@@ -9,6 +9,8 @@ Użycie (w katalogu głównym repozytorium RustDesk):
 Co zmienia:
   * libs/hbb_common/src/config.rs – domyślny serwer ID/relay i klucz publiczny,
     więc klient od razu łączy się z serwerem Sertum, bez żadnej konfiguracji.
+  * src/common.rs – using_public_server() uwzględnia wbudowany serwer, więc klient
+    nie pokazuje linku „skorzystaj z własnego serwera” (reklama serwerów RustDesk).
   * flutter/windows/runner/Runner.rc – nazwa produktu i firmy we właściwościach rustdesk.exe.
   * Cargo.toml, libs/portable/Cargo.toml – to samo dla librustdesk.dll
     i zewnętrznego SertumPomoc.exe (sekcja [package.metadata.winres]).
@@ -27,6 +29,7 @@ import sys
 from pathlib import Path
 
 CONFIG_RS = Path("libs/hbb_common/src/config.rs")
+COMMON_RS = Path("src/common.rs")
 RUNNER_RC = Path("flutter/windows/runner/Runner.rc")
 # Cargo.toml -> właściwości pliku (OriginalFilename; None = bez zmian)
 CARGO_WINRES = {
@@ -92,6 +95,24 @@ def patch_config(host: str, key: str) -> None:
     CONFIG_RS.write_text(text, encoding="utf-8")
     print(f"  serwer: {host}")
     print(f"  klucz:  {key}")
+
+
+def patch_public_server_check() -> None:
+    # Upstream uznaje klienta za korzystającego z publicznych serwerów RustDesk, gdy
+    # opcja custom-rendezvous-server jest pusta – nawet przy wbudowanym własnym serwerze.
+    text = COMMON_RS.read_text(encoding="utf-8")
+    marker = "is_public(hbb_common::config::RENDEZVOUS_SERVERS[0])"
+    if marker not in text:
+        text = replace_once(
+            text,
+            r'^(pub fn using_public_server\(\) -> bool \{\n'
+            r'\s*crate::get_custom_rendezvous_server\(get_option\("custom-rendezvous-server"\)\)'
+            r'\.is_empty\(\))\n\}',
+            r'\1\n        && ' + marker + r'\n}',
+            f"using_public_server() w {COMMON_RS}",
+        )
+        COMMON_RS.write_text(text, encoding="utf-8")
+    print("  serwer publiczny: rozpoznaje wbudowany serwer (bez reklamy serwerów RustDesk)")
 
 
 def rc_escape(s: str) -> str:
@@ -179,13 +200,14 @@ def main() -> None:
     p.add_argument("--branding", type=Path, help="katalog z icon.ico i/lub logo.png")
     args = p.parse_args()
 
-    for f in (CONFIG_RS, RUNNER_RC, *CARGO_WINRES):
+    for f in (CONFIG_RS, COMMON_RS, RUNNER_RC, *CARGO_WINRES):
         if not f.is_file():
             fail(f"nie znaleziono {f} – uruchom skrypt w katalogu głównym repo RustDesk "
                  f"(z pobranymi submodułami)")
 
     print("Konfiguracja klienta Sertum:")
     patch_config(validate_host(args.host), validate_key(args.key))
+    patch_public_server_check()
     patch_runner_rc(args.product, args.company)
     for cargo, original_filename in CARGO_WINRES.items():
         patch_cargo_winres(cargo, args.product, args.company, original_filename)
