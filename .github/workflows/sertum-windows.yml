@@ -16,14 +16,26 @@
 # Podpisywane są tylko 3 pliki na kompilację (rustdesk.exe, librustdesk.dll
 # i gotowy SertumPomoc.exe), żeby oszczędzać pulę podpisów w KeyLocker.
 #
+# Wariant (parametr przy uruchomieniu):
+#   pomoc   – SertumPomoc.exe dla klientów (tylko połączenia przychodzące); podpis wg SIGN_METHOD
+#   technik – SertumTechnik.exe dla techników (pełny); NIGDY nie jest podpisywany
+#
 # Kroki budowania są przeniesione 1:1 z upstream (flutter-build.yml, RustDesk 1.5.0,
 # job build-for-windows-flutter, wariant x86_64). Przy aktualizacji RustDesk porównaj
 # je z nową wersją upstream.
 
 name: Sertum Pomoc – Windows
 
+run-name: Sertum – ${{ inputs.variant }}
+
 on:
   workflow_dispatch:
+    inputs:
+      variant:
+        description: "Wariant: pomoc (dla klientów) lub technik (wewnętrzny, bez podpisu)"
+        type: choice
+        options: [pomoc, technik]
+        default: pomoc
 
 permissions:
   contents: read
@@ -34,7 +46,7 @@ env:
   FLUTTER_VERSION: "3.24.5"
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
-  OUTPUT_NAME: "SertumPomoc"
+  OUTPUT_NAME: ${{ inputs.variant == 'technik' && 'SertumTechnik' || 'SertumPomoc' }}
 
 jobs:
   generate-bridge:
@@ -44,7 +56,8 @@ jobs:
     needs: [generate-bridge]
     runs-on: windows-2022
     env:
-      SIGN_METHOD: ${{ vars.SIGN_METHOD || 'none' }}
+      # Wariant technik nigdy nie zużywa puli podpisów.
+      SIGN_METHOD: ${{ inputs.variant == 'pomoc' && (vars.SIGN_METHOD || 'none') || 'none' }}
       SM_HOST: ${{ vars.SM_HOST }}
       SM_API_KEY: ${{ secrets.SM_API_KEY }}
       SM_CLIENT_CERT_FILE: D:\sm_client_auth.p12
@@ -67,11 +80,12 @@ jobs:
         env:
           SERTUM_HOST: ${{ vars.SERTUM_HOST }}
           SERTUM_KEY: ${{ vars.SERTUM_KEY }}
+          SERTUM_VARIANT: ${{ inputs.variant }}
         run: |
           if [ -z "$SERTUM_HOST" ] || [ -z "$SERTUM_KEY" ]; then
             echo "::error::Ustaw zmienne repozytorium SERTUM_HOST i SERTUM_KEY"; exit 1
           fi
-          args=(--host "$SERTUM_HOST" --key "$SERTUM_KEY")
+          args=(--host "$SERTUM_HOST" --key "$SERTUM_KEY" --variant "${SERTUM_VARIANT:-pomoc}")
           [ -d sertum/branding ] && args+=(--branding sertum/branding)
           python3 sertum/sertum_configure.py "${args[@]}"
 
@@ -225,5 +239,5 @@ jobs:
       - name: Upload
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: sertum-pomoc-windows-x64
+          name: sertum-${{ inputs.variant }}-windows-x64
           path: ./SignOutput/

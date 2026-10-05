@@ -9,8 +9,14 @@ technik się łączy. Stały/nienadzorowany dostęp do komputerów klientów NIE
 
 `SertumPomoc.exe` działa w trybie **tylko przychodzącym** z wyłączoną instalacją
 (`HARD_SETTINGS`: `conn-type=incoming`, `disable-installation=Y`) – publicznie dostępny
-plik nie może służyć do łączenia się z innymi komputerami. Technicy używają oficjalnego
-klienta RustDesk ze wpisanym serwerem `pomoc.sertum.pl` i kluczem publicznym serwera.
+plik nie może służyć do łączenia się z innymi komputerami.
+
+Technicy używają `SertumTechnik.exe` (wariant `technik` tego samego workflow: pełny klient,
+bez instalacji, z wbudowanym serwerem i kluczem; **nigdy nie podpisywany i nie publikowany**)
+albo oficjalnego klienta RustDesk ze wpisanym serwerem `pomoc.sertum.pl` i kluczem.
+Plan po pilotażu: token techników sprawdzany przez zmodyfikowany hbbs/hbbr
+(pole `token` w `PunchHoleRequest`/`RequestRelay`), żeby serwer obsługiwał tylko nasze
+aplikacje techników.
 
 ## Architektura
 - Serwer: RustDesk Server OSS (hbbs + hbbr) w Dockerze na VPS w UE,

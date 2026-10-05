@@ -5,6 +5,10 @@ Wbudowuje ustawienia Sertum w źródła RustDesk przed kompilacją.
 Użycie (w katalogu głównym repozytorium RustDesk):
     python3 sertum/sertum_configure.py --host pomoc.sertum.pl --key "<klucz z id_ed25519.pub>"
     python3 sertum/sertum_configure.py --host ... --key ... --branding sertum/branding
+    python3 sertum/sertum_configure.py --host ... --key ... --variant technik
+
+Warianty: pomoc (domyślny) – SertumPomoc.exe dla klientów, tylko połączenia przychodzące;
+technik – SertumTechnik.exe dla techników, pełny (łączenie i udostępnianie), niepodpisywany.
 
 Co zmienia:
   * libs/hbb_common/src/config.rs – domyślny serwer ID/relay i klucz publiczny,
@@ -40,7 +44,23 @@ RUNNER_RC = Path("flutter/windows/runner/Runner.rc")
 # Cargo.toml -> właściwości pliku (OriginalFilename; None = bez zmian)
 CARGO_WINRES = {
     Path("Cargo.toml"): None,                              # librustdesk.dll
-    Path("libs/portable/Cargo.toml"): "SertumPomoc.exe",   # zewnętrzny plik dla klienta
+    Path("libs/portable/Cargo.toml"): "{exe}",             # zewnętrzny plik .exe
+}
+
+# Warianty klienta:
+#   pomoc   – publiczny, podpisywany plik dla klientów: tylko udostępnia ekran
+#   technik – wewnętrzny, niepodpisywany plik techników: łączy się i udostępnia
+VARIANTS = {
+    "pomoc": {
+        "product": "Sertum Pomoc Zdalna",
+        "exe": "SertumPomoc.exe",
+        "hard_settings": HARD_SETTINGS,
+    },
+    "technik": {
+        "product": "Sertum Technik",
+        "exe": "SertumTechnik.exe",
+        "hard_settings": {},
+    },
 }
 
 ICON_TARGETS = [
@@ -121,20 +141,27 @@ def patch_public_server_check() -> None:
     print("  serwer publiczny: rozpoznaje wbudowany serwer (bez reklamy serwerów RustDesk)")
 
 
-def patch_hard_settings() -> None:
+def patch_hard_settings(settings: dict) -> None:
     # Ustawienia, których użytkownik nie może zmienić (te same klucze, które w RustDesk
-    # ustawia podpisany custom.txt): tylko połączenia przychodzące i brak instalacji.
+    # ustawia podpisany custom.txt), np. tylko połączenia przychodzące i brak instalacji.
+    if settings:
+        value = "RwLock::new(HashMap::from([" + ", ".join(
+            f'("{k}".to_owned(), "{v}".to_owned())' for k, v in settings.items()
+        ) + "]))"
+    else:
+        value = "Default::default()"
     text = CONFIG_RS.read_text(encoding="utf-8")
     text = replace_once(
         text,
         r'^(\s*pub static ref HARD_SETTINGS: RwLock<HashMap<String, String>> = ).*;$',
-        r'\1RwLock::new(HashMap::from([' + ", ".join(
-            f'("{k}".to_owned(), "{v}".to_owned())' for k, v in HARD_SETTINGS.items()
-        ) + r']));',
+        lambda m: m.group(1) + value + ";",
         "HARD_SETTINGS",
     )
     CONFIG_RS.write_text(text, encoding="utf-8")
-    print("  tryb: tylko połączenia przychodzące, instalacja wyłączona")
+    if settings:
+        print("  tryb: " + ", ".join(f"{k}={v}" for k, v in settings.items()))
+    else:
+        print("  tryb: pełny (łączenie i udostępnianie)")
 
 
 def rc_escape(s: str) -> str:
@@ -217,23 +244,30 @@ def main() -> None:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--host", required=True, help="adres serwera, np. pomoc.sertum.pl")
     p.add_argument("--key", required=True, help="zawartość data/id_ed25519.pub z serwera")
-    p.add_argument("--product", default="Sertum Pomoc Zdalna")
+    p.add_argument("--variant", choices=VARIANTS, default="pomoc",
+                   help="pomoc = plik dla klientów (tylko przychodzące), "
+                        "technik = plik techników (pełny)")
+    p.add_argument("--product", help="nazwa produktu (domyślnie wg wariantu)")
     p.add_argument("--company", default="Sertum Sp. z o.o.")
     p.add_argument("--branding", type=Path, help="katalog z icon.ico i/lub logo.png")
     args = p.parse_args()
+    variant = VARIANTS[args.variant]
+    product = args.product or variant["product"]
 
     for f in (CONFIG_RS, COMMON_RS, RUNNER_RC, *CARGO_WINRES):
         if not f.is_file():
             fail(f"nie znaleziono {f} – uruchom skrypt w katalogu głównym repo RustDesk "
                  f"(z pobranymi submodułami)")
 
-    print("Konfiguracja klienta Sertum:")
+    print(f"Konfiguracja klienta Sertum (wariant: {args.variant}):")
     patch_config(validate_host(args.host), validate_key(args.key))
     patch_public_server_check()
-    patch_hard_settings()
-    patch_runner_rc(args.product, args.company)
+    patch_hard_settings(variant["hard_settings"])
+    patch_runner_rc(product, args.company)
     for cargo, original_filename in CARGO_WINRES.items():
-        patch_cargo_winres(cargo, args.product, args.company, original_filename)
+        if original_filename:
+            original_filename = original_filename.format(exe=variant["exe"])
+        patch_cargo_winres(cargo, product, args.company, original_filename)
     if args.branding:
         if not args.branding.is_dir():
             fail(f"brak katalogu {args.branding}")
