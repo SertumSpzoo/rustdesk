@@ -104,6 +104,8 @@ UI_RS = Path("src/ui.rs")                                  # ikona okna w interf
 LANG_DIR = Path("src/lang")                                # tłumaczenia (pl.rs, en.rs, ...)
 TABBAR_DART = Path("flutter/lib/desktop/widgets/tabbar_widget.dart")   # belka okna Fluttera
 TAB_PAGE_DART = Path("flutter/lib/desktop/pages/desktop_tab_page.dart")
+INDEX_TIS = Path("src/ui/index.tis")                       # okno główne interfejsu Sciter
+SCITER_INCOMING_WIDTH = 240                                # upstream: 180 px
 
 
 def fail(msg: str) -> None:
@@ -211,6 +213,20 @@ def patch_flutter_title() -> None:
         )
         TAB_PAGE_DART.write_text(text, encoding="utf-8")
     print("  tytuł na belce okna (Flutter): nazwa aplikacji")
+
+
+def patch_sciter_width(width: int) -> None:
+    # Okno Sciter (x86) w trybie „tylko przychodzące” ma 180 px – za wąsko na tytuł
+    # i nagłówek (ma stałą wysokość jednej linii, dłuższy tekst nachodzi na opis).
+    text = INDEX_TIS.read_text(encoding="utf-8")
+    text = replace_once(
+        text,
+        r'^const incoming_only_width = \d+;$',
+        f"const incoming_only_width = {width};",
+        f"incoming_only_width w {INDEX_TIS}",
+    )
+    INDEX_TIS.write_text(text, encoding="utf-8")
+    print(f"  szerokość okna Sciter: {width} px")
 
 
 def rust_str(s: str) -> str:
@@ -369,7 +385,8 @@ def main() -> None:
     variant = VARIANTS[args.variant]
     product = args.product or variant["product"]
 
-    for f in (CONFIG_RS, COMMON_RS, RUNNER_RC, UI_RS, TABBAR_DART, TAB_PAGE_DART, *CARGO_WINRES):
+    for f in (CONFIG_RS, COMMON_RS, RUNNER_RC, UI_RS, TABBAR_DART, TAB_PAGE_DART, INDEX_TIS,
+              *CARGO_WINRES):
         if not f.is_file():
             fail(f"nie znaleziono {f} – uruchom skrypt w katalogu głównym repo RustDesk "
                  f"(z pobranymi submodułami)")
@@ -380,6 +397,7 @@ def main() -> None:
     patch_hard_settings(variant["hard_settings"])
     patch_app_name(variant["app_name"])
     patch_flutter_title()
+    patch_sciter_width(SCITER_INCOMING_WIDTH)
     patch_texts(variant["texts"])
     patch_runner_rc(product, args.company)
     for cargo, original_filename in CARGO_WINRES.items():
