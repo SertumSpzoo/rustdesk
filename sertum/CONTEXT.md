@@ -36,7 +36,11 @@ aplikacje techników.
   - właściwości pliku: `flutter/windows/runner/Runner.rc` (rustdesk.exe) oraz
     `[package.metadata.winres]` w `Cargo.toml` (librustdesk.dll) i
     `libs/portable/Cargo.toml` (zewnętrzny SertumPomoc.exe),
-  - ikony i logo z `sertum/branding/` (`icon.ico`, `icon.png`, `logo.png`).
+  - ikony i logo z `sertum/branding/` (`icon.ico`, `icon.png`, `logo.png`; dla Sciter
+    także ikonę w `get_icon()` w `src/ui.rs`),
+  - `APP_NAME` (tytuł okna; `Sertum` dla klienta, `SertumTechnik` dla technika) – oficjalna
+    ścieżka „custom client”: osobna konfiguracja, brak sprawdzania aktualizacji rustdesk.com,
+  - teksty okna klienta w `src/lang/pl.rs` i `en.rs` (`Your Desktop`, `desk_tip`).
 - `.gitignore` upstream ignoruje `*png` – pliki PNG w `sertum/branding/` dodawaj `git add -f`.
 - Kompilacja: GitHub Actions, tylko Windows x64, wersja przenośna
   (`build.py --portable --flutter --skip-portable-pack`, potem `libs/portable/generate.py`).
