@@ -51,21 +51,44 @@ CARGO_WINRES = {
 # Warianty klienta:
 #   pomoc   – publiczny, podpisywany plik dla klientów: tylko udostępnia ekran
 #   technik – wewnętrzny, niepodpisywany plik techników: łączy się i udostępnia
+# Teksty w oknie klienta (klucze tłumaczeń RustDesk: src/lang/<język>.rs)
+CLIENT_TEXTS = {
+    "pl": {
+        "Your Desktop": "Pomoc Sertum",
+        "desk_tip": "Przekaż poniższe ID i hasło jednorazowe pracownikowi Sertum "
+                    "celem uzyskania pomocy zdalnej.",
+    },
+    "en": {
+        "Your Desktop": "Sertum Support",
+        "desk_tip": "Give the ID and one-time password below to a Sertum employee "
+                    "to get remote support.",
+    },
+}
+
+# app_name: tytuł okna i nazwa w komunikatach (RustDesk podmienia w nich „RustDesk”);
+# zmiana nazwy wyłącza też sprawdzanie aktualizacji na rustdesk.com. Różne nazwy
+# = osobna konfiguracja, więc SertumPomoc i SertumTechnik nie kolidują ze sobą.
 VARIANTS = {
     "pomoc": {
         "product": "Sertum Pomoc Zdalna",
         "exe": "SertumPomoc.exe",
+        "app_name": "Sertum",
         "hard_settings": HARD_SETTINGS,
+        "texts": CLIENT_TEXTS,
     },
     "pomoc32": {                     # 32-bit Windows (interfejs Sciter zamiast Fluttera)
         "product": "Sertum Pomoc Zdalna",
         "exe": "SertumPomoc32.exe",
+        "app_name": "Sertum",
         "hard_settings": HARD_SETTINGS,
+        "texts": CLIENT_TEXTS,
     },
     "technik": {
         "product": "Sertum Technik",
         "exe": "SertumTechnik.exe",
+        "app_name": "SertumTechnik",
         "hard_settings": {},
+        "texts": {},
     },
 }
 
@@ -78,6 +101,7 @@ ICON_TARGETS = [
 LOGO_TARGET = Path("flutter/assets/logo.png")
 ICON_PNG_TARGET = Path("flutter/assets/icon.png")
 UI_RS = Path("src/ui.rs")                                  # ikona okna w interfejsie Sciter
+LANG_DIR = Path("src/lang")                                # tłumaczenia (pl.rs, en.rs, ...)
 
 
 def fail(msg: str) -> None:
@@ -146,6 +170,47 @@ def patch_public_server_check() -> None:
         )
         COMMON_RS.write_text(text, encoding="utf-8")
     print("  serwer publiczny: rozpoznaje wbudowany serwer (bez reklamy serwerów RustDesk)")
+
+
+def patch_app_name(name: str) -> None:
+    if not re.fullmatch(r"[A-Za-z0-9]+", name):
+        fail(f"nazwa aplikacji może zawierać tylko litery i cyfry: {name!r}")
+    text = CONFIG_RS.read_text(encoding="utf-8")
+    text = replace_once(
+        text,
+        r'^(\s*pub static ref APP_NAME: RwLock<String> = RwLock::new\(")[^"]*("\.to_owned\(\)\);)$',
+        lambda m: m.group(1) + name + m.group(2),
+        "APP_NAME",
+    )
+    CONFIG_RS.write_text(text, encoding="utf-8")
+    print(f"  nazwa aplikacji (tytuł okna): {name}")
+
+
+def rust_str(s: str) -> str:
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def patch_texts(texts: dict) -> None:
+    for lang, entries in texts.items():
+        path = LANG_DIR / f"{lang}.rs"
+        text = path.read_text(encoding="utf-8")
+        for key, value in entries.items():
+            entry = f'("{rust_str(key)}", "{rust_str(value)}"),'
+            pattern = r'^(\s*)\("' + re.escape(key) + r'", ".*"\),$'
+            if re.search(pattern, text, re.MULTILINE):
+                text = replace_once(text, pattern, lambda m: m.group(1) + entry,
+                                    f"{key} w {path}")
+            else:
+                # klucz bez tłumaczenia w tym języku – dopisujemy na początku tabeli
+                text = replace_once(
+                    text,
+                    r'^(pub static ref T: std::collections::HashMap<&\'static str, &\'static str> =\n\s*\[\n)',
+                    lambda m: m.group(1) + "        " + entry + "\n",
+                    f"tabela tłumaczeń w {path}",
+                )
+        path.write_text(text, encoding="utf-8")
+    if texts:
+        print(f"  teksty w oknie: {', '.join(texts)}")
 
 
 def patch_hard_settings(settings: dict) -> None:
@@ -286,6 +351,8 @@ def main() -> None:
     patch_config(validate_host(args.host), validate_key(args.key))
     patch_public_server_check()
     patch_hard_settings(variant["hard_settings"])
+    patch_app_name(variant["app_name"])
+    patch_texts(variant["texts"])
     patch_runner_rc(product, args.company)
     for cargo, original_filename in CARGO_WINRES.items():
         if original_filename:
