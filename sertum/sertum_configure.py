@@ -102,6 +102,8 @@ LOGO_TARGET = Path("flutter/assets/logo.png")
 ICON_PNG_TARGET = Path("flutter/assets/icon.png")
 UI_RS = Path("src/ui.rs")                                  # ikona okna w interfejsie Sciter
 LANG_DIR = Path("src/lang")                                # tłumaczenia (pl.rs, en.rs, ...)
+TABBAR_DART = Path("flutter/lib/desktop/widgets/tabbar_widget.dart")   # belka okna Fluttera
+TAB_PAGE_DART = Path("flutter/lib/desktop/pages/desktop_tab_page.dart")
 
 
 def fail(msg: str) -> None:
@@ -184,6 +186,31 @@ def patch_app_name(name: str) -> None:
     )
     CONFIG_RS.write_text(text, encoding="utf-8")
     print(f"  nazwa aplikacji (tytuł okna): {name}")
+
+
+def patch_flutter_title() -> None:
+    # Belka okna Fluttera (x64) ma napis "RustDesk" wpisany na sztywno i domyślnie ukryty
+    # (showTitle: false) – pokazujemy w oknie głównym nazwę aplikacji (APP_NAME).
+    text = TABBAR_DART.read_text(encoding="utf-8")
+    if "bind.mainGetAppNameSync()," not in text:
+        text = replace_once(
+            text,
+            r'child: const Text\(\n(\s*)"RustDesk",',
+            lambda m: "child: Text(\n" + m.group(1) + "bind.mainGetAppNameSync(),",
+            f"napis tytułu w {TABBAR_DART}",
+        )
+        TABBAR_DART.write_text(text, encoding="utf-8")
+    text = TAB_PAGE_DART.read_text(encoding="utf-8")
+    if "showTitle: true, // Sertum" not in text:
+        text = replace_once(
+            text,
+            r'(body: DesktopTab\(\n(\s*))controller: tabController,',
+            lambda m: m.group(1) + "showTitle: true, // Sertum\n" + m.group(2)
+                      + "controller: tabController,",
+            f"DesktopTab w {TAB_PAGE_DART}",
+        )
+        TAB_PAGE_DART.write_text(text, encoding="utf-8")
+    print("  tytuł na belce okna (Flutter): nazwa aplikacji")
 
 
 def rust_str(s: str) -> str:
@@ -342,7 +369,7 @@ def main() -> None:
     variant = VARIANTS[args.variant]
     product = args.product or variant["product"]
 
-    for f in (CONFIG_RS, COMMON_RS, RUNNER_RC, UI_RS, *CARGO_WINRES):
+    for f in (CONFIG_RS, COMMON_RS, RUNNER_RC, UI_RS, TABBAR_DART, TAB_PAGE_DART, *CARGO_WINRES):
         if not f.is_file():
             fail(f"nie znaleziono {f} – uruchom skrypt w katalogu głównym repo RustDesk "
                  f"(z pobranymi submodułami)")
@@ -352,6 +379,7 @@ def main() -> None:
     patch_public_server_check()
     patch_hard_settings(variant["hard_settings"])
     patch_app_name(variant["app_name"])
+    patch_flutter_title()
     patch_texts(variant["texts"])
     patch_runner_rc(product, args.company)
     for cargo, original_filename in CARGO_WINRES.items():
