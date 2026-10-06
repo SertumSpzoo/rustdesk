@@ -45,6 +45,9 @@ aplikacje techników.
 - Mamy wykupioną **pulę podpisów** – każdy podpisany plik ją zużywa. Podpisujemy tylko
   `rustdesk.exe`, `librustdesk.dll` i finalny `SertumPomoc.exe` (3 na kompilację).
   Nie zmieniaj tego na podpisywanie całego katalogu bez uzgodnienia.
+- Certyfikat w KeyLocker może mieć tylko **jednego użytkownika podpisującego**; sekrety
+  `SM_*` w repo należą do tego użytkownika (osobny token API i certyfikat `.p12` dla CI).
+  Błąd 403 „does not have privileges to access the keypair” = sekrety innego użytkownika.
 - Testowe kompilacje: zmienna repo `SIGN_METHOD=none`. `digicert` włączamy wyłącznie
   za zgodą właściciela i dopiero po udanej identycznej kompilacji bez podpisu.
 
@@ -52,7 +55,8 @@ aplikacje techników.
 - [x] Skrypt konfiguracji klienta i workflow (RustDesk 1.5.0), kompilacja bez podpisu działa.
 - [x] Serwer na VPS, DNS, prawdziwy klucz w `SERTUM_KEY`; test połączenia udany.
 - [x] Branding: nazwy we właściwościach plików, ikona i logo Sertum.
-- [ ] Podpis przez KeyLocker, test SmartScreen na czystym Windows.
+- [x] Podpis przez KeyLocker (pierwsze podpisane wydanie 2026-10-06, run 37425308494).
+- [ ] Test SmartScreen na czystym Windows.
 - [ ] Pilotaż na części zgłoszeń.
 
 ## Zasady
