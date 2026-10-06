@@ -65,6 +65,9 @@ aplikacje techników.
 - [x] Serwer na VPS, DNS, prawdziwy klucz w `SERTUM_KEY`; test połączenia udany.
 - [x] Branding: nazwy we właściwościach plików, ikona i logo Sertum.
 - [x] Podpis przez KeyLocker (pierwsze podpisane wydanie 2026-10-06, run 37425308494).
+- [x] Podpisany `SertumPomoc32.exe` z nazwą/tekstami Sertum (2026-10-07, run 37541275450).
+- [ ] Podpisany `SertumPomoc.exe` (x64) z nazwą/tekstami Sertum – podpisane wydanie x64
+      z 2026-10-06 jest jeszcze sprzed tych zmian.
 - [ ] Test SmartScreen na czystym Windows.
 - [ ] Pilotaż na części zgłoszeń.
 
