@@ -11,6 +11,11 @@ technik się łączy. Stały/nienadzorowany dostęp do komputerów klientów NIE
 (`HARD_SETTINGS`: `conn-type=incoming`, `disable-installation=Y`) – publicznie dostępny
 plik nie może służyć do łączenia się z innymi komputerami.
 
+Część klientów ma 32-bitowy Windows (7 i 10). Flutter nie obsługuje x86, więc dla nich jest
+`SertumPomoc32.exe` (wariant `pomoc32`): ten sam silnik i ustawienia, interfejs Sciter,
+kompilacja według upstreamowego joba `build-for-windows-sciter` (i686, nightly-2023-10-13).
+Podpis: 2 pliki (`rustdesk.exe`, `SertumPomoc32.exe`); `sciter.dll` to biblioteka zewnętrzna.
+
 Technicy używają `SertumTechnik.exe` (wariant `technik` tego samego workflow: pełny klient,
 bez instalacji, z wbudowanym serwerem i kluczem; **nigdy nie podpisywany i nie publikowany**)
 albo oficjalnego klienta RustDesk ze wpisanym serwerem `pomoc.sertum.pl` i kluczem.

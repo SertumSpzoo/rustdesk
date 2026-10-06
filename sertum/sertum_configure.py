@@ -8,6 +8,7 @@ Użycie (w katalogu głównym repozytorium RustDesk):
     python3 sertum/sertum_configure.py --host ... --key ... --variant technik
 
 Warianty: pomoc (domyślny) – SertumPomoc.exe dla klientów, tylko połączenia przychodzące;
+pomoc32 – SertumPomoc32.exe, to samo dla 32-bitowego Windows (interfejs Sciter);
 technik – SertumTechnik.exe dla techników, pełny (łączenie i udostępnianie), niepodpisywany.
 
 Co zmienia:
@@ -56,6 +57,11 @@ VARIANTS = {
         "exe": "SertumPomoc.exe",
         "hard_settings": HARD_SETTINGS,
     },
+    "pomoc32": {                     # 32-bit Windows (interfejs Sciter zamiast Fluttera)
+        "product": "Sertum Pomoc Zdalna",
+        "exe": "SertumPomoc32.exe",
+        "hard_settings": HARD_SETTINGS,
+    },
     "technik": {
         "product": "Sertum Technik",
         "exe": "SertumTechnik.exe",
@@ -71,6 +77,7 @@ ICON_TARGETS = [
 ]
 LOGO_TARGET = Path("flutter/assets/logo.png")
 ICON_PNG_TARGET = Path("flutter/assets/icon.png")
+UI_RS = Path("src/ui.rs")                                  # ikona okna w interfejsie Sciter
 
 
 def fail(msg: str) -> None:
@@ -231,9 +238,25 @@ def apply_branding(branding: Path) -> None:
         print(f"  logo:  brak {logo}, bez logo w oknie")
     if icon_png.is_file():
         shutil.copyfile(icon_png, ICON_PNG_TARGET)
+        patch_sciter_icon(icon_png)
         print(f"  ikona w aplikacji: {icon_png}")
     else:
         print(f"  ikona w aplikacji: brak {icon_png}, zostaje domyślna")
+
+
+def patch_sciter_icon(icon_png: Path) -> None:
+    # Interfejs Sciter (wariant 32-bit) bierze ikonę okna z obrazka wbudowanego
+    # w get_icon() w src/ui.rs (128x128, wariant inny niż macOS).
+    data = base64.b64encode(icon_png.read_bytes()).decode()
+    text = UI_RS.read_text(encoding="utf-8")
+    text = replace_once(
+        text,
+        r'(#\[cfg\(not\(target_os = "macos"\)\)\] // 128x128 no padding\s*\{\s*)'
+        r'"data:image/png;base64,[A-Za-z0-9+/=]*"',
+        lambda m: m.group(1) + f'"data:image/png;base64,{data}"',
+        f"get_icon() w {UI_RS}",
+    )
+    UI_RS.write_text(text, encoding="utf-8")
 
 
 def main() -> None:
@@ -254,7 +277,7 @@ def main() -> None:
     variant = VARIANTS[args.variant]
     product = args.product or variant["product"]
 
-    for f in (CONFIG_RS, COMMON_RS, RUNNER_RC, *CARGO_WINRES):
+    for f in (CONFIG_RS, COMMON_RS, RUNNER_RC, UI_RS, *CARGO_WINRES):
         if not f.is_file():
             fail(f"nie znaleziono {f} – uruchom skrypt w katalogu głównym repo RustDesk "
                  f"(z pobranymi submodułami)")
